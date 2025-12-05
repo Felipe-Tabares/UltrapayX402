@@ -27,7 +27,7 @@ export function History({ history, onNavigate }: HistoryProps) {
   const uniqueModels = Array.from(new Set(history.map(item => item.model)));
 
   return (
-    <div className="flex min-h-screen bg-neutral-50">
+    <div className="flex min-h-screen bg-background">
       <Sidebar currentView="history" onNavigate={onNavigate} />
       
       <div className="flex-1">
@@ -38,7 +38,7 @@ export function History({ history, onNavigate }: HistoryProps) {
             <h1 className="mb-8">Historial de generaciones</h1>
             
             {/* Filters */}
-            <Card className="p-6 border-neutral-200 mb-6">
+            <Card className="p-6 border-border mb-6">
               <div className="grid md:grid-cols-4 gap-4">
                 <div>
                   <Label htmlFor="filter-type" className="mb-2 block">Tipo de contenido</Label>
@@ -81,7 +81,7 @@ export function History({ history, onNavigate }: HistoryProps) {
             </Card>
 
             {/* Table */}
-            <Card className="border-neutral-200 overflow-hidden">
+            <Card className="border-border overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -91,13 +91,13 @@ export function History({ history, onNavigate }: HistoryProps) {
                     <TableHead>Modelo</TableHead>
                     <TableHead>Fecha</TableHead>
                     <TableHead className="text-right">Costo</TableHead>
-                    <TableHead className="text-right">Acción</TableHead>
+                    <TableHead className="text-right">Accion</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredHistory.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-neutral-600">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         No se encontraron resultados
                       </TableCell>
                     </TableRow>
@@ -105,9 +105,9 @@ export function History({ history, onNavigate }: HistoryProps) {
                     filteredHistory.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>
-                          <div className="size-10 bg-neutral-100 rounded overflow-hidden">
-                            <img 
-                              src={item.url} 
+                          <div className="size-10 bg-secondary rounded overflow-hidden">
+                            <img
+                              src={item.url}
                               alt={item.prompt}
                               className="size-full object-cover"
                             />
@@ -119,16 +119,16 @@ export function History({ history, onNavigate }: HistoryProps) {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             {item.type === 'image' ? (
-                              <Image className="size-4 text-neutral-600" />
+                              <Image className="size-4 text-primary" />
                             ) : (
-                              <Video className="size-4 text-neutral-600" />
+                              <Video className="size-4 text-primary" />
                             )}
                             <span className="capitalize">{item.type}</span>
                           </div>
                         </TableCell>
                         <TableCell>{item.model}</TableCell>
                         <TableCell>{item.date}</TableCell>
-                        <TableCell className="text-right">{item.cost.toFixed(2)} x402</TableCell>
+                        <TableCell className="text-right text-primary font-medium">{item.cost.toFixed(2)} x402</TableCell>
                         <TableCell className="text-right">
                           <Button size="sm" variant="ghost">
                             <Eye className="size-4" />
@@ -143,22 +143,22 @@ export function History({ history, onNavigate }: HistoryProps) {
 
             {/* Summary */}
             <div className="grid md:grid-cols-3 gap-6 mt-6">
-              <Card className="p-6 border-neutral-200">
-                <div className="text-sm text-neutral-600 mb-1">Total generaciones</div>
-                <div className="text-3xl">{history.length}</div>
+              <Card className="p-6 border-border">
+                <div className="text-sm text-muted-foreground mb-1">Total generaciones</div>
+                <div className="text-3xl text-primary">{history.length}</div>
               </Card>
 
-              <Card className="p-6 border-neutral-200">
-                <div className="text-sm text-neutral-600 mb-1">Gasto total</div>
-                <div className="text-3xl">
+              <Card className="p-6 border-border">
+                <div className="text-sm text-muted-foreground mb-1">Gasto total</div>
+                <div className="text-3xl text-primary">
                   {history.reduce((sum, item) => sum + item.cost, 0).toFixed(2)} x402
                 </div>
               </Card>
 
-              <Card className="p-6 border-neutral-200">
-                <div className="text-sm text-neutral-600 mb-1">Promedio por generación</div>
-                <div className="text-3xl">
-                  {history.length > 0 
+              <Card className="p-6 border-border">
+                <div className="text-sm text-muted-foreground mb-1">Promedio por generacion</div>
+                <div className="text-3xl text-primary">
+                  {history.length > 0
                     ? (history.reduce((sum, item) => sum + item.cost, 0) / history.length).toFixed(2)
                     : '0.00'
                   } x402

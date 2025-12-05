@@ -65,7 +65,7 @@ export function Generate({ balance, onNavigate, onGenerate }: GenerateProps) {
   };
 
   return (
-    <div className="flex min-h-screen bg-neutral-50">
+    <div className="flex min-h-screen bg-background">
       <Sidebar currentView="generate" onNavigate={onNavigate} />
       
       <div className="flex-1">
@@ -78,7 +78,7 @@ export function Generate({ balance, onNavigate, onGenerate }: GenerateProps) {
             <div className="grid md:grid-cols-3 gap-6">
               {/* Main Form */}
               <div className="md:col-span-2 space-y-6">
-                <Card className="p-6 border-neutral-200">
+                <Card className="p-6 border-border">
                   <Label htmlFor="prompt" className="mb-2 block">Describe lo que quieres crear</Label>
                   <Textarea
                     id="prompt"
@@ -89,8 +89,8 @@ export function Generate({ balance, onNavigate, onGenerate }: GenerateProps) {
                   />
                 </Card>
 
-                <Card className="p-6 border-neutral-200">
-                  <h3 className="mb-4">Configuración</h3>
+                <Card className="p-6 border-border">
+                  <h3 className="mb-4">Configuracion</h3>
                   
                   <div className="space-y-4">
                     <div>
@@ -160,26 +160,26 @@ export function Generate({ balance, onNavigate, onGenerate }: GenerateProps) {
 
               {/* Cost Card */}
               <div className="md:col-span-1">
-                <Card className="p-6 border-neutral-200 sticky top-8">
+                <Card className="p-6 border-border sticky top-8">
                   <h3 className="mb-4">Costo estimado</h3>
-                  
-                  <div className="bg-neutral-50 rounded-lg p-4 mb-6">
-                    <div className="text-sm text-neutral-600 mb-1">Total a pagar</div>
-                    <div className="text-3xl">{estimatedCost.toFixed(2)}</div>
-                    <div className="text-sm text-neutral-600">x402</div>
+
+                  <div className="bg-secondary rounded-lg p-4 mb-6">
+                    <div className="text-sm text-muted-foreground mb-1">Total a pagar</div>
+                    <div className="text-3xl text-primary font-medium">{estimatedCost.toFixed(2)}</div>
+                    <div className="text-sm text-muted-foreground">x402</div>
                   </div>
 
                   <div className="space-y-2 mb-6 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-neutral-600">Modelo</span>
+                      <span className="text-muted-foreground">Modelo</span>
                       <span>{currentModel?.name}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-neutral-600">Tipo</span>
+                      <span className="text-muted-foreground">Tipo</span>
                       <span className="capitalize">{currentModel?.type}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-neutral-600">Resolución</span>
+                      <span className="text-muted-foreground">Resolucion</span>
                       <span>{resolution}</span>
                     </div>
                   </div>
@@ -212,11 +212,11 @@ export function Generate({ balance, onNavigate, onGenerate }: GenerateProps) {
 
             {/* Loading State */}
             {isGenerating && (
-              <Card className="p-8 border-neutral-200 mt-6">
+              <Card className="p-8 border-border mt-6">
                 <div className="text-center">
-                  <Loader2 className="size-8 animate-spin mx-auto mb-4 text-neutral-600" />
+                  <Loader2 className="size-8 animate-spin mx-auto mb-4 text-primary" />
                   <h3 className="mb-2">Generando tu contenido</h3>
-                  <p className="text-neutral-600">Esto puede tomar unos segundos...</p>
+                  <p className="text-muted-foreground">Esto puede tomar unos segundos...</p>
                 </div>
               </Card>
             )}

@@ -15,13 +15,13 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
   ];
 
   return (
-    <div className="w-64 bg-white border-r border-neutral-200 flex flex-col">
-      <div className="p-6 border-b border-neutral-200">
+    <div className="w-64 bg-card border-r border-border flex flex-col">
+      <div className="p-6 border-b border-border">
         <div className="flex items-center gap-2">
-          <div className="size-8 bg-neutral-900 rounded-lg flex items-center justify-center">
-            <Wallet className="size-4 text-white" />
+          <div className="size-8 bg-primary rounded-lg flex items-center justify-center">
+            <Wallet className="size-4 text-primary-foreground" />
           </div>
-          <span>UltraPayx402</span>
+          <span className="font-medium">UltraPayx402</span>
         </div>
       </div>
       
@@ -37,8 +37,8 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
                   onClick={() => onNavigate(item.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                     isActive
-                      ? 'bg-neutral-900 text-white'
-                      : 'text-neutral-600 hover:bg-neutral-100'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-secondary hover:text-secondary-foreground'
                   }`}
                 >
                   <Icon className="size-5" />
