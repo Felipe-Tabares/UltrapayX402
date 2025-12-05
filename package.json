@@ -51,7 +51,9 @@
     "recharts": "^2.15.2",
     "sonner": "^2.0.3",
     "tailwind-merge": "*",
-    "vaul": "^1.1.2"
+    "vaul": "^1.1.2",
+    "viem": "^2.41.2",
+    "x402-fetch": "^0.7.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

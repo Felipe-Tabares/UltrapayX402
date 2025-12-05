@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { Card } from './ui/card';
@@ -6,8 +6,18 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
-import { Loader2, Sparkles, Wand2, Image, Video, Zap, CheckCircle2 } from 'lucide-react';
+import { Loader2, Sparkles, Wand2, Image, Video, Zap, CheckCircle2, AlertCircle, Wallet } from 'lucide-react';
 import type { View, GeneratedContent } from '../App';
+import { api, type Provider } from '../services/api';
+import {
+  connectWallet,
+  getWalletState,
+  hasWalletProvider,
+  createPaymentFetch,
+  switchToCorrectNetwork,
+  type WalletState
+} from '../services/x402';
+import { config } from '../config';
 
 interface GenerateProps {
   balance: number;
@@ -16,54 +26,162 @@ interface GenerateProps {
   onDisconnect: () => void;
 }
 
-const models = [
-  { id: 'sd35', name: 'SD3.5', type: 'image', cost: 0.15, description: 'Alta calidad, versatil' },
-  { id: 'veo3', name: 'Veo 3', type: 'video', cost: 0.85, description: 'Videos realistas' },
-  { id: 'runway', name: 'Runway Gen-3', type: 'video', cost: 1.20, description: 'Cinematografico' },
-  { id: 'nanobanana', name: 'NanoBanana', type: 'image', cost: 0.10, description: 'Rapido y economico' },
-  { id: 'midjourney', name: 'Midjourney', type: 'image', cost: 0.20, description: 'Artistico premium' },
-];
-
 const resolutions = ['512x512', '1024x1024', '1920x1080', '2048x2048'];
 const durations = ['5s', '10s', '15s', '30s'];
 const styles = ['Realista', 'Artistico', 'Anime', 'Abstracto', '3D Render', 'Cinematico'];
 
 export function Generate({ balance, onNavigate, onGenerate, onDisconnect }: GenerateProps) {
   const [prompt, setPrompt] = useState('');
-  const [selectedModel, setSelectedModel] = useState('sd35');
+  const [selectedModel, setSelectedModel] = useState('');
   const [resolution, setResolution] = useState('1024x1024');
   const [duration, setDuration] = useState('10s');
   const [style, setStyle] = useState('Realista');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [generationStep, setGenerationStep] = useState<string>('');
 
-  const currentModel = models.find(m => m.id === selectedModel);
-  const estimatedCost = currentModel?.cost || 0;
-  const canGenerate = prompt.trim().length > 0 && balance >= estimatedCost;
+  // Estado para proveedores cargados desde el backend
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [isLoadingProviders, setIsLoadingProviders] = useState(true);
 
+  // Estado de la wallet para x402
+  const [walletState, setWalletState] = useState<WalletState>({
+    isConnected: false,
+    address: null,
+    chainId: null,
+    balance: null,
+  });
+  const [isConnectingWallet, setIsConnectingWallet] = useState(false);
+
+  // Cargar proveedores y estado de wallet al montar
+  useEffect(() => {
+    async function init() {
+      // Cargar proveedores
+      try {
+        setIsLoadingProviders(true);
+        const response = await api.getProviders();
+        setProviders(response.providers);
+
+        if (response.providers.length > 0) {
+          setSelectedModel(response.providers[0].id);
+        }
+      } catch (err) {
+        console.error('Error loading providers:', err);
+        setError('No se pudieron cargar los modelos. Verifica la conexion con el servidor.');
+      } finally {
+        setIsLoadingProviders(false);
+      }
+
+      // Verificar estado de wallet
+      if (hasWalletProvider()) {
+        const state = await getWalletState();
+        setWalletState(state);
+      }
+    }
+
+    init();
+  }, []);
+
+  const currentModel = providers.find(m => m.id === selectedModel);
+  const estimatedCost = currentModel?.price || 0;
+
+  // En modo mock no requerimos wallet conectada
+  const isUsingMock = api.isUsingMock();
+  const canGenerate = prompt.trim().length > 0 &&
+    !isLoadingProviders &&
+    (isUsingMock || walletState.isConnected);
+
+  // Conectar wallet
+  const handleConnectWallet = async () => {
+    setIsConnectingWallet(true);
+    setError(null);
+
+    try {
+      const state = await connectWallet();
+      setWalletState(state);
+
+      // Verificar si estamos en la red correcta
+      const expectedChainId = config.x402.network === 'base-sepolia' ? 84532 : 8453;
+      if (state.chainId !== expectedChainId) {
+        setError(`Por favor cambia a la red ${config.x402.network}`);
+        await switchToCorrectNetwork();
+        const newState = await getWalletState();
+        setWalletState(newState);
+      }
+    } catch (err) {
+      console.error('Error connecting wallet:', err);
+      setError(err instanceof Error ? err.message : 'Error al conectar wallet');
+    } finally {
+      setIsConnectingWallet(false);
+    }
+  };
+
+  // Generar contenido con pago x402
   const handleGenerate = async () => {
     if (!prompt.trim() || !currentModel) return;
 
     setIsGenerating(true);
+    setError(null);
+    setGenerationStep('Preparando...');
 
-    // Simulate generation delay
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    try {
+      let result;
 
-    const mockUrls = [
-      'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800',
-      'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800',
-      'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800',
-      'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800',
-    ];
+      if (isUsingMock) {
+        // Modo mock: simular pago y generacion
+        setGenerationStep('Simulando pago x402...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-    onGenerate({
-      prompt,
-      type: currentModel.type as 'image' | 'video',
-      model: currentModel.name,
-      cost: estimatedCost,
-      url: mockUrls[Math.floor(Math.random() * mockUrls.length)],
-    });
+        setGenerationStep('Generando con IA...');
+        result = await api.generateWithPayment(
+          {
+            prompt,
+            type: currentModel.type,
+            provider: currentModel.id
+          },
+          fetch // En mock no se usa realmente
+        );
+      } else {
+        // Modo real: usar x402-fetch con pago automatico
+        if (!walletState.isConnected) {
+          throw new Error('Wallet no conectada');
+        }
 
-    setIsGenerating(false);
+        setGenerationStep('Preparando pago x402...');
+        const paymentFetch = await createPaymentFetch();
+
+        setGenerationStep('Firmando transaccion...');
+        // x402-fetch manejara automaticamente el 402 y el pago
+
+        setGenerationStep('Generando con IA...');
+        result = await api.generateWithPayment(
+          {
+            prompt,
+            type: currentModel.type,
+            provider: currentModel.id
+          },
+          paymentFetch
+        );
+      }
+
+      setGenerationStep('Completado!');
+
+      // Notificar resultado
+      onGenerate({
+        prompt,
+        type: currentModel.type,
+        model: currentModel.name,
+        cost: estimatedCost,
+        url: result.mediaUrl,
+      });
+
+    } catch (err) {
+      console.error('Generate error:', err);
+      setError(err instanceof Error ? err.message : 'Error al generar contenido');
+    } finally {
+      setIsGenerating(false);
+      setGenerationStep('');
+    }
   };
 
   const promptSuggestions = [
@@ -92,6 +210,69 @@ export function Generate({ balance, onNavigate, onGenerate, onDisconnect }: Gene
               </div>
               <p className="text-muted-foreground">Describe tu vision y deja que la IA la haga realidad</p>
             </div>
+
+            {/* Wallet Status Banner */}
+            {!isUsingMock && (
+              <Card className={`p-4 mb-6 ${walletState.isConnected ? 'border-green-500/50 bg-green-500/10' : 'border-yellow-500/50 bg-yellow-500/10'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Wallet className={`size-5 ${walletState.isConnected ? 'text-green-600' : 'text-yellow-600'}`} />
+                    {walletState.isConnected ? (
+                      <div>
+                        <p className="text-sm font-medium text-green-700">Wallet conectada</p>
+                        <p className="text-xs text-muted-foreground">
+                          {walletState.address?.slice(0, 6)}...{walletState.address?.slice(-4)}
+                          {' | '}Red: {walletState.chainId === 84532 ? 'Base Sepolia' : walletState.chainId === 8453 ? 'Base' : `Chain ${walletState.chainId}`}
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-sm font-medium text-yellow-700">Wallet no conectada</p>
+                        <p className="text-xs text-muted-foreground">Conecta tu wallet para realizar pagos x402</p>
+                      </div>
+                    )}
+                  </div>
+                  {!walletState.isConnected && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleConnectWallet}
+                      disabled={isConnectingWallet}
+                    >
+                      {isConnectingWallet ? (
+                        <Loader2 className="size-4 animate-spin mr-2" />
+                      ) : (
+                        <Wallet className="size-4 mr-2" />
+                      )}
+                      Conectar Wallet
+                    </Button>
+                  )}
+                </div>
+              </Card>
+            )}
+
+            {/* Mock Mode Banner */}
+            {isUsingMock && (
+              <Card className="p-4 mb-6 border-blue-500/50 bg-blue-500/10">
+                <div className="flex items-center gap-2 text-blue-700">
+                  <AlertCircle className="size-5" />
+                  <p className="text-sm">
+                    <strong>Modo Demo:</strong> Los pagos y generaciones son simulados.
+                    Configura VITE_USE_MOCK=false cuando el backend esté desplegado.
+                  </p>
+                </div>
+              </Card>
+            )}
+
+            {/* Error message */}
+            {error && (
+              <Card className="p-4 mb-6 border-destructive/50 bg-destructive/10">
+                <div className="flex items-center gap-2 text-destructive">
+                  <AlertCircle className="size-5" />
+                  <p className="text-sm">{error}</p>
+                </div>
+              </Card>
+            )}
 
             <div className="grid lg:grid-cols-3 gap-6">
               {/* Main Form */}
@@ -129,38 +310,46 @@ export function Generate({ balance, onNavigate, onGenerate, onDisconnect }: Gene
                 {/* Model Selection */}
                 <Card className="p-6 border-border/50">
                   <Label className="text-base font-semibold mb-4 block">Modelo de IA</Label>
-                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                    {models.map((model) => {
-                      const isSelected = selectedModel === model.id;
-                      const Icon = model.type === 'image' ? Image : Video;
 
-                      return (
-                        <button
-                          key={model.id}
-                          onClick={() => setSelectedModel(model.id)}
-                          className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
-                            isSelected
-                              ? 'border-primary bg-primary/5 shadow-lg shadow-primary/10'
-                              : 'border-border/50 hover:border-primary/30 hover:bg-secondary/30'
-                          }`}
-                        >
-                          {isSelected && (
-                            <CheckCircle2 className="absolute top-2 right-2 size-5 text-primary" />
-                          )}
-                          <div className={`size-8 rounded-lg flex items-center justify-center mb-2 ${
-                            model.type === 'image'
-                              ? 'bg-blue-500/10 text-blue-600'
-                              : 'bg-pink-500/10 text-pink-600'
-                          }`}>
-                            <Icon className="size-4" />
-                          </div>
-                          <p className="font-semibold text-sm">{model.name}</p>
-                          <p className="text-xs text-muted-foreground">{model.description}</p>
-                          <p className="text-xs font-semibold text-primary mt-1">{model.cost.toFixed(2)} x402</p>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {isLoadingProviders ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="size-6 animate-spin text-primary" />
+                      <span className="ml-2 text-muted-foreground">Cargando modelos...</span>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                      {providers.map((model) => {
+                        const isSelected = selectedModel === model.id;
+                        const Icon = model.type === 'image' ? Image : Video;
+
+                        return (
+                          <button
+                            key={model.id}
+                            onClick={() => setSelectedModel(model.id)}
+                            className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
+                              isSelected
+                                ? 'border-primary bg-primary/5 shadow-lg shadow-primary/10'
+                                : 'border-border/50 hover:border-primary/30 hover:bg-secondary/30'
+                            }`}
+                          >
+                            {isSelected && (
+                              <CheckCircle2 className="absolute top-2 right-2 size-5 text-primary" />
+                            )}
+                            <div className={`size-8 rounded-lg flex items-center justify-center mb-2 ${
+                              model.type === 'image'
+                                ? 'bg-blue-500/10 text-blue-600'
+                                : 'bg-pink-500/10 text-pink-600'
+                            }`}>
+                              <Icon className="size-4" />
+                            </div>
+                            <p className="font-semibold text-sm">{model.name}</p>
+                            <p className="text-xs text-muted-foreground">{model.description}</p>
+                            <p className="text-xs font-semibold text-primary mt-1">${model.price.toFixed(2)} USD</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </Card>
 
                 {/* Configuration */}
@@ -224,16 +413,19 @@ export function Generate({ balance, onNavigate, onGenerate, onDisconnect }: Gene
                   <div className="bg-gradient-to-br from-violet-500/10 to-purple-500/10 rounded-xl p-5 mb-6 border border-primary/20">
                     <div className="text-sm text-muted-foreground mb-1">Costo total</div>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-bold text-primary">{estimatedCost.toFixed(2)}</span>
-                      <span className="text-muted-foreground">x402</span>
+                      <span className="text-4xl font-bold text-primary">${estimatedCost.toFixed(2)}</span>
+                      <span className="text-muted-foreground">USD</span>
                     </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Pagado via protocolo x402 (USDC)
+                    </p>
                   </div>
 
                   {/* Details */}
                   <div className="space-y-3 mb-6">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Modelo</span>
-                      <span className="font-medium">{currentModel?.name}</span>
+                      <span className="font-medium">{currentModel?.name || '-'}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Tipo</span>
@@ -243,7 +435,7 @@ export function Generate({ balance, onNavigate, onGenerate, onDisconnect }: Gene
                         ) : (
                           <Video className="size-3.5 text-pink-600" />
                         )}
-                        {currentModel?.type}
+                        {currentModel?.type || '-'}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
@@ -253,6 +445,10 @@ export function Generate({ balance, onNavigate, onGenerate, onDisconnect }: Gene
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Estilo</span>
                       <span className="font-medium">{style}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Red</span>
+                      <span className="font-medium">{config.x402.network}</span>
                     </div>
                   </div>
 
@@ -266,7 +462,7 @@ export function Generate({ balance, onNavigate, onGenerate, onDisconnect }: Gene
                     {isGenerating ? (
                       <>
                         <Loader2 className="size-5 animate-spin" />
-                        Generando...
+                        {generationStep || 'Procesando...'}
                       </>
                     ) : (
                       <>
@@ -276,19 +472,33 @@ export function Generate({ balance, onNavigate, onGenerate, onDisconnect }: Gene
                     )}
                   </Button>
 
-                  {balance < estimatedCost && (
-                    <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                      <p className="text-sm text-destructive flex items-center gap-2">
-                        <Zap className="size-4" />
-                        Saldo insuficiente. Recarga tu wallet.
+                  {!isUsingMock && !walletState.isConnected && (
+                    <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                      <p className="text-sm text-yellow-700 flex items-center gap-2">
+                        <Wallet className="size-4" />
+                        Conecta tu wallet para generar
                       </p>
                     </div>
                   )}
 
-                  {/* Security note */}
-                  <p className="text-xs text-muted-foreground text-center mt-4">
-                    Pago seguro via protocolo x402
-                  </p>
+                  {balance < estimatedCost && walletState.isConnected && (
+                    <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                      <p className="text-sm text-destructive flex items-center gap-2">
+                        <Zap className="size-4" />
+                        Saldo insuficiente. Recarga tu wallet con USDC.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Network info */}
+                  <div className="mt-4 p-3 bg-secondary/50 rounded-lg">
+                    <p className="text-xs text-muted-foreground">
+                      <strong>Facilitador:</strong> {config.x402.facilitatorUrl}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      <strong>Receptor:</strong> {config.x402.walletAddress.slice(0, 10)}...
+                    </p>
+                  </div>
                 </Card>
               </div>
             </div>
@@ -305,8 +515,15 @@ export function Generate({ balance, onNavigate, onGenerate, onDisconnect }: Gene
                       <Loader2 className="size-4 text-white animate-spin" />
                     </div>
                   </div>
-                  <h3 className="text-xl font-semibold mb-2">Creando tu contenido</h3>
-                  <p className="text-muted-foreground mb-4">La IA esta procesando tu solicitud...</p>
+                  <h3 className="text-xl font-semibold mb-2">
+                    {generationStep || 'Procesando tu solicitud'}
+                  </h3>
+                  <p className="text-muted-foreground mb-4">
+                    {isUsingMock
+                      ? 'Simulando generacion con IA...'
+                      : 'La wallet firmara la transaccion automaticamente'
+                    }
+                  </p>
                   <div className="max-w-xs mx-auto h-2 bg-secondary rounded-full overflow-hidden">
                     <div className="h-full bg-gradient-to-r from-violet-500 to-purple-600 rounded-full animate-pulse" style={{ width: '60%' }} />
                   </div>
