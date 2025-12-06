@@ -4,15 +4,17 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Image, Video, TrendingUp, Sparkles, ArrowRight, Clock, Zap } from 'lucide-react';
 import type { View, GeneratedContent } from '../App';
+import type { WalletState } from '../services/x402';
 
 interface DashboardProps {
-  balance: number;
   onNavigate: (view: View) => void;
   history: GeneratedContent[];
   onDisconnect: () => void;
+  walletAddress?: string | null;
+  onWalletChange?: (state: WalletState) => void;
 }
 
-export function Dashboard({ balance, onNavigate, history, onDisconnect }: DashboardProps) {
+export function Dashboard({ onNavigate, history, onDisconnect, walletAddress, onWalletChange }: DashboardProps) {
   const monthlySpend = history.reduce((sum, item) => sum + item.cost, 0);
   const imageCount = history.filter(item => item.type === 'image').length;
   const videoCount = history.filter(item => item.type === 'video').length;
@@ -22,7 +24,7 @@ export function Dashboard({ balance, onNavigate, history, onDisconnect }: Dashbo
       <Sidebar currentView="dashboard" onNavigate={onNavigate} onDisconnect={onDisconnect} />
 
       <div className="flex-1">
-        <Header balance={balance} onNavigate={onNavigate} />
+        <Header walletAddress={walletAddress} onNavigate={onNavigate} onWalletChange={onWalletChange} />
 
         <main className="p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">

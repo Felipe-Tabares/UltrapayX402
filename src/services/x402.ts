@@ -43,15 +43,32 @@ function getChain() {
 
 /**
  * Conecta con la wallet del usuario
+ * Usa wallet_requestPermissions para forzar la selección de wallet/cuenta
  */
-export async function connectWallet(): Promise<WalletState> {
+export async function connectWallet(forceNewConnection: boolean = true): Promise<WalletState> {
   if (!hasWalletProvider()) {
     throw new Error('No se encontró una wallet. Instala MetaMask o Core Wallet.');
   }
 
   try {
-    // Solicitar conexión a la wallet
-    const accounts = await window.ethereum!.request({
+    let accounts: string[];
+
+    if (forceNewConnection) {
+      // Forzar nueva selección de wallet/cuenta usando wallet_requestPermissions
+      // Esto abre el popup de selección de cuenta
+      try {
+        await window.ethereum!.request({
+          method: 'wallet_requestPermissions',
+          params: [{ eth_accounts: {} }],
+        });
+      } catch (permError) {
+        // Si el usuario cancela o hay error, intentar con eth_requestAccounts
+        console.log('Permission request failed, falling back to eth_requestAccounts');
+      }
+    }
+
+    // Obtener las cuentas después de la selección
+    accounts = await window.ethereum!.request({
       method: 'eth_requestAccounts',
     }) as string[];
 
@@ -94,11 +111,81 @@ export async function connectWallet(): Promise<WalletState> {
 }
 
 /**
- * Desconecta la wallet
+ * Desconecta la wallet y revoca permisos
+ * Nota: No todas las wallets soportan revocar permisos programáticamente
  */
-export function disconnectWallet(): void {
+export async function disconnectWallet(): Promise<void> {
   walletClient = null;
   currentAccount = null;
+
+  // Intentar revocar permisos (solo funciona en algunas wallets como MetaMask)
+  if (hasWalletProvider()) {
+    try {
+      // Algunos proveedores soportan wallet_revokePermissions
+      await window.ethereum!.request({
+        method: 'wallet_revokePermissions',
+        params: [{ eth_accounts: {} }],
+      });
+    } catch {
+      // La mayoría de wallets no soportan esto, lo ignoramos
+      console.log('Wallet does not support revokePermissions - user must disconnect manually from wallet');
+    }
+  }
+}
+
+/**
+ * Abre el selector de cuentas para cambiar de dirección
+ */
+export async function switchAccount(): Promise<WalletState> {
+  if (!hasWalletProvider()) {
+    throw new Error('No wallet provider found');
+  }
+
+  try {
+    // wallet_requestPermissions fuerza el popup de selección de cuenta
+    await window.ethereum!.request({
+      method: 'wallet_requestPermissions',
+      params: [{ eth_accounts: {} }],
+    });
+
+    // Obtener la nueva cuenta seleccionada
+    const accounts = await window.ethereum!.request({
+      method: 'eth_accounts',
+    }) as string[];
+
+    if (!accounts || accounts.length === 0) {
+      throw new Error('No account selected');
+    }
+
+    const address = accounts[0];
+
+    // Actualizar wallet client
+    walletClient = createWalletClient({
+      chain: getChain(),
+      transport: custom(window.ethereum!),
+    });
+
+    const chainId = await window.ethereum!.request({
+      method: 'eth_chainId',
+    }) as string;
+
+    const balance = await window.ethereum!.request({
+      method: 'eth_getBalance',
+      params: [address, 'latest'],
+    }) as string;
+
+    const balanceInEth = parseInt(balance, 16) / 1e18;
+
+    return {
+      isConnected: true,
+      address,
+      chainId: parseInt(chainId, 16),
+      balance: balanceInEth.toFixed(4),
+    };
+  } catch (error) {
+    console.error('Error switching account:', error);
+    throw error;
+  }
 }
 
 /**

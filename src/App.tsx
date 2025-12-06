@@ -5,6 +5,14 @@ import { Generate } from './components/Generate';
 import { Result } from './components/Result';
 import { History } from './components/History';
 import { Settings } from './components/Settings';
+import {
+  connectWallet,
+  disconnectWallet,
+  getWalletState,
+  hasWalletProvider,
+  onWalletChange,
+  type WalletState
+} from './services/x402';
 
 export type View = 'landing' | 'dashboard' | 'generate' | 'result' | 'history' | 'settings';
 
@@ -20,66 +28,78 @@ export interface GeneratedContent {
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('landing');
-  const [isWalletConnected, setIsWalletConnected] = useState(false);
-  const [balance, setBalance] = useState(150.42);
+  const [walletState, setWalletState] = useState<WalletState>({
+    isConnected: false,
+    address: null,
+    chainId: null,
+    balance: null,
+  });
+  const [isConnectingWallet, setIsConnectingWallet] = useState(false);
+  const [walletError, setWalletError] = useState<string | null>(null);
   const [currentResult, setCurrentResult] = useState<GeneratedContent | null>(null);
+
+  // Escuchar cambios en la wallet (pero NO auto-conectar al cargar)
+  useEffect(() => {
+    // Escuchar cambios en la wallet mientras está conectada
+    const cleanup = onWalletChange((newState) => {
+      setWalletState(newState);
+      // Si se desconecta desde la wallet, volver al landing
+      if (!newState.isConnected && currentView !== 'landing') {
+        setCurrentView('landing');
+      }
+    });
+
+    return cleanup;
+  }, [currentView]);
 
   // Escuchar el boton de atras/adelante del navegador
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
       if (event.state?.view) {
         setCurrentView(event.state.view);
-        if (event.state.view === 'landing') {
-          setIsWalletConnected(false);
-        }
       }
     };
 
     window.addEventListener('popstate', handlePopState);
-
-    // Establecer el estado inicial
     window.history.replaceState({ view: 'landing' }, '', '/');
 
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
-  const [history, setHistory] = useState<GeneratedContent[]>([
-    {
-      id: '1',
-      prompt: 'A futuristic city at sunset with flying cars',
-      type: 'image',
-      model: 'SD3.5',
-      date: '2025-11-28',
-      cost: 0.15,
-      url: 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=800'
-    },
-    {
-      id: '2',
-      prompt: 'Ocean waves in slow motion',
-      type: 'video',
-      model: 'Veo 3',
-      date: '2025-11-27',
-      cost: 0.85,
-      url: 'https://images.unsplash.com/photo-1505142468610-359e7d316be0?w=800'
-    },
-    {
-      id: '3',
-      prompt: 'Abstract geometric patterns in blue',
-      type: 'image',
-      model: 'Midjourney',
-      date: '2025-11-26',
-      cost: 0.20,
-      url: 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=800'
-    },
-  ]);
 
-  const handleConnectWallet = () => {
-    setIsWalletConnected(true);
-    setCurrentView('dashboard');
-    window.history.pushState({ view: 'dashboard' }, '', '/dashboard');
+  // Historia de generaciones (empieza vacia, se llena con uso real)
+  const [history, setHistory] = useState<GeneratedContent[]>([]);
+
+  // Conectar wallet real
+  const handleConnectWallet = async () => {
+    if (!hasWalletProvider()) {
+      setWalletError('No se encontro wallet. Instala MetaMask o Core Wallet.');
+      return;
+    }
+
+    setIsConnectingWallet(true);
+    setWalletError(null);
+
+    try {
+      const state = await connectWallet();
+      setWalletState(state);
+      setCurrentView('dashboard');
+      window.history.pushState({ view: 'dashboard' }, '', '/dashboard');
+    } catch (error) {
+      console.error('Error connecting wallet:', error);
+      setWalletError(error instanceof Error ? error.message : 'Error al conectar wallet');
+    } finally {
+      setIsConnectingWallet(false);
+    }
   };
 
-  const handleDisconnectWallet = () => {
-    setIsWalletConnected(false);
+  const handleDisconnectWallet = async () => {
+    await disconnectWallet();
+    setWalletState({
+      isConnected: false,
+      address: null,
+      chainId: null,
+      balance: null,
+    });
     setCurrentView('landing');
     window.history.pushState({ view: 'landing' }, '', '/');
   };
@@ -98,7 +118,6 @@ function App() {
       date: new Date().toISOString().split('T')[0],
     };
     setHistory([newContent, ...history]);
-    setBalance(balance - content.cost);
     setCurrentResult(newContent);
     navigateTo('result');
   };
@@ -106,22 +125,27 @@ function App() {
   return (
     <div className="min-h-screen bg-white">
       {currentView === 'landing' && (
-        <Landing onConnectWallet={handleConnectWallet} />
+        <Landing
+          onConnectWallet={handleConnectWallet}
+          isConnecting={isConnectingWallet}
+          error={walletError}
+        />
       )}
       {currentView === 'dashboard' && (
         <Dashboard
-          balance={balance}
           onNavigate={navigateTo}
           history={history.slice(0, 5)}
           onDisconnect={handleDisconnectWallet}
+          walletAddress={walletState.address}
+          onWalletChange={setWalletState}
         />
       )}
       {currentView === 'generate' && (
         <Generate
-          balance={balance}
           onNavigate={navigateTo}
           onGenerate={handleGenerate}
           onDisconnect={handleDisconnectWallet}
+          onWalletChange={setWalletState}
         />
       )}
       {currentView === 'result' && currentResult && (
@@ -129,23 +153,27 @@ function App() {
           content={currentResult}
           onNavigate={navigateTo}
           onRegenerate={() => navigateTo('generate')}
-          balance={balance}
           onDisconnect={handleDisconnectWallet}
+          walletAddress={walletState.address}
+          onWalletChange={setWalletState}
         />
       )}
       {currentView === 'history' && (
         <History
           history={history}
           onNavigate={navigateTo}
-          balance={balance}
           onDisconnect={handleDisconnectWallet}
+          walletAddress={walletState.address}
+          onWalletChange={setWalletState}
         />
       )}
       {currentView === 'settings' && (
         <Settings
-          isWalletConnected={isWalletConnected}
+          isWalletConnected={walletState.isConnected}
           onNavigate={navigateTo}
           onDisconnectWallet={handleDisconnectWallet}
+          walletAddress={walletState.address}
+          onWalletChange={setWalletState}
         />
       )}
     </div>

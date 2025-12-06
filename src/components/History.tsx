@@ -7,15 +7,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from './ui/label';
 import { Image, Video, Eye, TrendingUp, Layers, Clock, X, Search } from 'lucide-react';
 import type { View, GeneratedContent } from '../App';
+import type { WalletState } from '../services/x402';
 
 interface HistoryProps {
   history: GeneratedContent[];
   onNavigate: (view: View) => void;
-  balance: number;
   onDisconnect: () => void;
+  walletAddress?: string | null;
+  onWalletChange?: (state: WalletState) => void;
 }
 
-export function History({ history, onNavigate, balance, onDisconnect }: HistoryProps) {
+export function History({ history, onNavigate, onDisconnect, walletAddress, onWalletChange }: HistoryProps) {
   const [filterType, setFilterType] = useState<string>('all');
   const [filterModel, setFilterModel] = useState<string>('all');
 
@@ -41,7 +43,7 @@ export function History({ history, onNavigate, balance, onDisconnect }: HistoryP
       <Sidebar currentView="history" onNavigate={onNavigate} onDisconnect={onDisconnect} />
 
       <div className="flex-1">
-        <Header balance={balance} onNavigate={onNavigate} />
+        <Header walletAddress={walletAddress} onNavigate={onNavigate} onWalletChange={onWalletChange} />
 
         <main className="p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">

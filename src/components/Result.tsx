@@ -5,13 +5,15 @@ import { Button } from './ui/button';
 import { Download, RefreshCw, Share2, Heart, Sparkles, ArrowLeft, Copy, Check, Image, Video, Clock, Palette } from 'lucide-react';
 import { useState } from 'react';
 import type { View, GeneratedContent } from '../App';
+import type { WalletState } from '../services/x402';
 
 interface ResultProps {
   content: GeneratedContent;
   onNavigate: (view: View) => void;
   onRegenerate: () => void;
-  balance: number;
   onDisconnect: () => void;
+  walletAddress?: string | null;
+  onWalletChange?: (state: WalletState) => void;
 }
 
 const suggestedPrompts = [
@@ -21,7 +23,7 @@ const suggestedPrompts = [
   { text: 'Aumentar saturacion de colores', icon: Palette },
 ];
 
-export function Result({ content, onNavigate, onRegenerate, balance, onDisconnect }: ResultProps) {
+export function Result({ content, onNavigate, onRegenerate, onDisconnect, walletAddress, onWalletChange }: ResultProps) {
   const [copied, setCopied] = useState(false);
   const [liked, setLiked] = useState(false);
 
@@ -36,7 +38,7 @@ export function Result({ content, onNavigate, onRegenerate, balance, onDisconnec
       <Sidebar currentView="result" onNavigate={onNavigate} onDisconnect={onDisconnect} />
 
       <div className="flex-1">
-        <Header balance={balance} onNavigate={onNavigate} />
+        <Header walletAddress={walletAddress} onNavigate={onNavigate} onWalletChange={onWalletChange} />
 
         <main className="p-6 lg:p-8">
           <div className="max-w-6xl mx-auto">

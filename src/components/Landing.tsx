@@ -1,12 +1,14 @@
-import { Sparkles, Zap, CreditCard, ArrowRight, Play, Shield, Globe } from 'lucide-react';
+import { Sparkles, Zap, CreditCard, ArrowRight, Play, Shield, Globe, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 
 interface LandingProps {
   onConnectWallet: () => void;
+  isConnecting?: boolean;
+  error?: string | null;
 }
 
-export function Landing({ onConnectWallet }: LandingProps) {
+export function Landing({ onConnectWallet, isConnecting = false, error }: LandingProps) {
   const benefits = [
     {
       icon: CreditCard,
@@ -68,8 +70,15 @@ export function Landing({ onConnectWallet }: LandingProps) {
               </div>
               <span className="font-semibold text-lg">UltraPayx402</span>
             </div>
-            <Button onClick={onConnectWallet} className="shadow-lg shadow-primary/25">
-              Conectar Wallet
+            <Button onClick={onConnectWallet} disabled={isConnecting} className="shadow-lg shadow-primary/25">
+              {isConnecting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin mr-2" />
+                  Conectando...
+                </>
+              ) : (
+                'Conectar Wallet'
+              )}
             </Button>
           </div>
         </div>
@@ -106,15 +115,33 @@ export function Landing({ onConnectWallet }: LandingProps) {
               Sin suscripciones, solo micropagos instantaneos.
             </p>
 
+            {/* Error message */}
+            {error && (
+              <div className="flex items-center justify-center gap-2 mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl max-w-md mx-auto">
+                <AlertCircle className="size-5 text-destructive" />
+                <p className="text-sm text-destructive">{error}</p>
+              </div>
+            )}
+
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
               <Button
                 size="lg"
                 onClick={onConnectWallet}
+                disabled={isConnecting}
                 className="gap-2 text-base px-8 py-6 shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 hover:-translate-y-0.5"
               >
-                Comenzar ahora
-                <ArrowRight className="size-5" />
+                {isConnecting ? (
+                  <>
+                    <Loader2 className="size-5 animate-spin" />
+                    Conectando wallet...
+                  </>
+                ) : (
+                  <>
+                    Comenzar ahora
+                    <ArrowRight className="size-5" />
+                  </>
+                )}
               </Button>
               <Button
                 size="lg"
@@ -219,10 +246,20 @@ export function Landing({ onConnectWallet }: LandingProps) {
               <Button
                 size="lg"
                 onClick={onConnectWallet}
+                disabled={isConnecting}
                 className="gap-2 text-base px-8 py-6 shadow-xl shadow-primary/30"
               >
-                Conectar Wallet y empezar
-                <ArrowRight className="size-5" />
+                {isConnecting ? (
+                  <>
+                    <Loader2 className="size-5 animate-spin" />
+                    Conectando...
+                  </>
+                ) : (
+                  <>
+                    Conectar Wallet y empezar
+                    <ArrowRight className="size-5" />
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -250,10 +287,20 @@ export function Landing({ onConnectWallet }: LandingProps) {
                 <Button
                   size="lg"
                   onClick={onConnectWallet}
+                  disabled={isConnecting}
                   className="bg-white text-violet-700 hover:bg-white/90 gap-2 text-base px-8 py-6 shadow-xl"
                 >
-                  Conectar Wallet x402
-                  <ArrowRight className="size-5" />
+                  {isConnecting ? (
+                    <>
+                      <Loader2 className="size-5 animate-spin" />
+                      Conectando...
+                    </>
+                  ) : (
+                    <>
+                      Conectar Wallet x402
+                      <ArrowRight className="size-5" />
+                    </>
+                  )}
                 </Button>
               </div>
             </Card>

@@ -20,17 +20,17 @@ import {
 import { config } from '../config';
 
 interface GenerateProps {
-  balance: number;
   onNavigate: (view: View) => void;
   onGenerate: (content: Omit<GeneratedContent, 'id' | 'date'>) => void;
   onDisconnect: () => void;
+  onWalletChange?: (state: WalletState) => void;
 }
 
 const resolutions = ['512x512', '1024x1024', '1920x1080', '2048x2048'];
 const durations = ['5s', '10s', '15s', '30s'];
 const styles = ['Realista', 'Artistico', 'Anime', 'Abstracto', '3D Render', 'Cinematico'];
 
-export function Generate({ balance, onNavigate, onGenerate, onDisconnect }: GenerateProps) {
+export function Generate({ onNavigate, onGenerate, onDisconnect, onWalletChange }: GenerateProps) {
   const [prompt, setPrompt] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
   const [resolution, setResolution] = useState('1024x1024');
@@ -196,7 +196,10 @@ export function Generate({ balance, onNavigate, onGenerate, onDisconnect }: Gene
       <Sidebar currentView="generate" onNavigate={onNavigate} onDisconnect={onDisconnect} />
 
       <div className="flex-1">
-        <Header balance={balance} onNavigate={onNavigate} />
+        <Header walletAddress={walletState.address} onNavigate={onNavigate} onWalletChange={(state) => {
+          setWalletState(state);
+          if (onWalletChange) onWalletChange(state);
+        }} />
 
         <main className="p-6 lg:p-8">
           <div className="max-w-5xl mx-auto">
@@ -481,14 +484,6 @@ export function Generate({ balance, onNavigate, onGenerate, onDisconnect }: Gene
                     </div>
                   )}
 
-                  {balance < estimatedCost && walletState.isConnected && (
-                    <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                      <p className="text-sm text-destructive flex items-center gap-2">
-                        <Zap className="size-4" />
-                        Saldo insuficiente. Recarga tu wallet con USDC.
-                      </p>
-                    </div>
-                  )}
 
                   {/* Network info */}
                   <div className="mt-4 p-3 bg-secondary/50 rounded-lg">

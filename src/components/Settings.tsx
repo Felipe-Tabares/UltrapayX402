@@ -9,14 +9,17 @@ import { Switch } from './ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Wallet, CheckCircle2, XCircle } from 'lucide-react';
 import type { View } from '../App';
+import type { WalletState } from '../services/x402';
 
 interface SettingsProps {
   isWalletConnected: boolean;
   onNavigate: (view: View) => void;
   onDisconnectWallet: () => void;
+  walletAddress?: string | null;
+  onWalletChange?: (state: WalletState) => void;
 }
 
-export function Settings({ isWalletConnected, onNavigate, onDisconnectWallet }: SettingsProps) {
+export function Settings({ isWalletConnected, onNavigate, onDisconnectWallet, walletAddress, onWalletChange }: SettingsProps) {
   const [dailyLimit, setDailyLimit] = useState('10');
   const [monthlyLimit, setMonthlyLimit] = useState('100');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -29,7 +32,7 @@ export function Settings({ isWalletConnected, onNavigate, onDisconnectWallet }: 
       <Sidebar currentView="settings" onNavigate={onNavigate} onDisconnect={onDisconnectWallet} />
       
       <div className="flex-1">
-        <Header balance={150} onNavigate={onNavigate} />
+        <Header walletAddress={walletAddress} onNavigate={onNavigate} onWalletChange={onWalletChange} />
         
         <main className="p-8">
           <div className="max-w-4xl mx-auto">
@@ -59,9 +62,9 @@ export function Settings({ isWalletConnected, onNavigate, onDisconnectWallet }: 
                           </>
                         )}
                       </div>
-                      {isWalletConnected && (
+                      {isWalletConnected && walletAddress && (
                         <div className="text-sm text-neutral-600 font-mono">
-                          0x742d...a8e9
+                          {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
                         </div>
                       )}
                     </div>
