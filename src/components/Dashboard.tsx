@@ -24,7 +24,7 @@ export function Dashboard({ onNavigate, history, onDisconnect, walletAddress, on
       <Sidebar currentView="dashboard" onNavigate={onNavigate} onDisconnect={onDisconnect} />
 
       <div className="flex-1">
-        <Header walletAddress={walletAddress} onNavigate={onNavigate} onWalletChange={onWalletChange} />
+        <Header walletAddress={walletAddress} onNavigate={onNavigate} onWalletChange={onWalletChange} onDisconnect={onDisconnect} />
 
         <main className="p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">

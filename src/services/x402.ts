@@ -134,19 +134,57 @@ export async function disconnectWallet(): Promise<void> {
 }
 
 /**
+ * Detecta qué wallet está siendo usada
+ */
+function detectWalletType(): 'rabby' | 'metamask' | 'other' {
+  if (!window.ethereum) return 'other';
+
+  // Rabby se identifica con isRabby
+  if ((window.ethereum as Record<string, unknown>).isRabby) return 'rabby';
+  // MetaMask se identifica con isMetaMask
+  if ((window.ethereum as Record<string, unknown>).isMetaMask) return 'metamask';
+
+  return 'other';
+}
+
+/**
  * Abre el selector de cuentas para cambiar de dirección
+ * Soporta MetaMask, Rabby y otras wallets
  */
 export async function switchAccount(): Promise<WalletState> {
   if (!hasWalletProvider()) {
-    throw new Error('No wallet provider found');
+    throw new Error('No se encontró wallet. Instala MetaMask o Core Wallet.');
   }
 
+  const walletType = detectWalletType();
+  console.log('Detected wallet:', walletType);
+
   try {
-    // wallet_requestPermissions fuerza el popup de selección de cuenta
-    await window.ethereum!.request({
-      method: 'wallet_requestPermissions',
-      params: [{ eth_accounts: {} }],
-    });
+    // Guardar la cuenta actual para comparar
+    const currentAccounts = await window.ethereum!.request({
+      method: 'eth_accounts',
+    }) as string[];
+    const currentAddress = currentAccounts[0];
+
+    if (walletType === 'rabby') {
+      // Rabby: usar wallet_requestPermissions pero con instrucciones claras
+      // Rabby abrirá su popup interno para seleccionar cuenta
+      try {
+        await window.ethereum!.request({
+          method: 'wallet_requestPermissions',
+          params: [{ eth_accounts: {} }],
+        });
+      } catch {
+        // Si Rabby no abre popup, lanzar error con instrucciones
+        throw new Error('Haz clic en el icono de Rabby y selecciona otra cuenta');
+      }
+    } else {
+      // MetaMask y otros: wallet_requestPermissions funciona bien
+      await window.ethereum!.request({
+        method: 'wallet_requestPermissions',
+        params: [{ eth_accounts: {} }],
+      });
+    }
 
     // Obtener la nueva cuenta seleccionada
     const accounts = await window.ethereum!.request({
@@ -154,10 +192,18 @@ export async function switchAccount(): Promise<WalletState> {
     }) as string[];
 
     if (!accounts || accounts.length === 0) {
-      throw new Error('No account selected');
+      throw new Error('No se seleccionó ninguna cuenta');
     }
 
     const address = accounts[0];
+
+    // Si la cuenta no cambió, dar instrucciones específicas
+    if (address.toLowerCase() === currentAddress?.toLowerCase()) {
+      if (walletType === 'rabby') {
+        throw new Error('Cuenta sin cambios. Usa el icono de Rabby para cambiar.');
+      }
+      throw new Error('Selecciona una cuenta diferente en tu wallet');
+    }
 
     // Actualizar wallet client
     walletClient = createWalletClient({
@@ -184,7 +230,13 @@ export async function switchAccount(): Promise<WalletState> {
     };
   } catch (error) {
     console.error('Error switching account:', error);
-    throw error;
+    if (error instanceof Error) {
+      if (error.message.includes('User rejected') || error.message.includes('user rejected')) {
+        throw new Error('Solicitud cancelada');
+      }
+      throw error;
+    }
+    throw new Error('Error al cambiar de cuenta. Intenta desde tu wallet.');
   }
 }
 

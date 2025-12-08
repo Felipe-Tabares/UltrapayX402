@@ -20,7 +20,7 @@ export function Sidebar({ currentView, onNavigate, onDisconnect }: SidebarProps)
       {/* Logo - Clickable to go to Landing */}
       <div className="p-6">
         <button
-          onClick={onDisconnect}
+          onClick={() => onNavigate('landing')}
           className="flex items-center gap-3 hover:opacity-80 transition-opacity w-full text-left"
         >
           <div className="size-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/25">

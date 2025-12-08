@@ -1,14 +1,21 @@
-import { Sparkles, Zap, CreditCard, ArrowRight, Play, Shield, Globe, Loader2, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { Sparkles, Zap, CreditCard, ArrowRight, Play, Shield, Globe, Loader2, AlertCircle, Wallet, LogOut, ChevronDown } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 
 interface LandingProps {
   onConnectWallet: () => void;
+  onGoToDashboard?: () => void;
+  onDisconnect?: () => void;
   isConnecting?: boolean;
+  isConnected?: boolean;
+  walletAddress?: string | null;
   error?: string | null;
 }
 
-export function Landing({ onConnectWallet, isConnecting = false, error }: LandingProps) {
+export function Landing({ onConnectWallet, onGoToDashboard, onDisconnect, isConnecting = false, isConnected = false, walletAddress, error }: LandingProps) {
+  const [showWalletMenu, setShowWalletMenu] = useState(false);
+
   const benefits = [
     {
       icon: CreditCard,
@@ -70,16 +77,73 @@ export function Landing({ onConnectWallet, isConnecting = false, error }: Landin
               </div>
               <span className="font-semibold text-lg">UltraPayx402</span>
             </div>
-            <Button onClick={onConnectWallet} disabled={isConnecting} className="shadow-lg shadow-primary/25">
-              {isConnecting ? (
-                <>
-                  <Loader2 className="size-4 animate-spin mr-2" />
-                  Conectando...
-                </>
-              ) : (
-                'Conectar Wallet'
+            <div className="flex items-center gap-3">
+              {isConnected && walletAddress && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowWalletMenu(!showWalletMenu)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-lg hover:bg-green-500/20 transition-colors"
+                  >
+                    <div className="size-6 bg-gradient-to-br from-green-500 to-emerald-600 rounded-md flex items-center justify-center">
+                      <Wallet className="size-3 text-white" />
+                    </div>
+                    <span className="font-mono text-sm text-green-700">
+                      {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                    </span>
+                    <ChevronDown className={`size-4 text-green-700 transition-transform ${showWalletMenu ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Dropdown menu */}
+                  {showWalletMenu && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowWalletMenu(false)}
+                      />
+                      <div className="absolute right-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-lg py-2 z-50">
+                        <button
+                          onClick={() => {
+                            setShowWalletMenu(false);
+                            onGoToDashboard?.();
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm hover:bg-secondary flex items-center gap-2"
+                        >
+                          <ArrowRight className="size-4" />
+                          Ir al Dashboard
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowWalletMenu(false);
+                            onDisconnect?.();
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2"
+                        >
+                          <LogOut className="size-4" />
+                          Desconectar
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               )}
-            </Button>
+              {isConnected ? (
+                <Button onClick={onGoToDashboard} className="shadow-lg shadow-primary/25 gap-2">
+                  Ir al Dashboard
+                  <ArrowRight className="size-4" />
+                </Button>
+              ) : (
+                <Button onClick={onConnectWallet} disabled={isConnecting} className="shadow-lg shadow-primary/25">
+                  {isConnecting ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin mr-2" />
+                      Conectando...
+                    </>
+                  ) : (
+                    'Conectar Wallet'
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </nav>
@@ -125,24 +189,35 @@ export function Landing({ onConnectWallet, isConnecting = false, error }: Landin
 
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-              <Button
-                size="lg"
-                onClick={onConnectWallet}
-                disabled={isConnecting}
-                className="gap-2 text-base px-8 py-6 shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 hover:-translate-y-0.5"
-              >
-                {isConnecting ? (
-                  <>
-                    <Loader2 className="size-5 animate-spin" />
-                    Conectando wallet...
-                  </>
-                ) : (
-                  <>
-                    Comenzar ahora
-                    <ArrowRight className="size-5" />
-                  </>
-                )}
-              </Button>
+              {isConnected ? (
+                <Button
+                  size="lg"
+                  onClick={onGoToDashboard}
+                  className="gap-2 text-base px-8 py-6 shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 hover:-translate-y-0.5"
+                >
+                  Ir al Dashboard
+                  <ArrowRight className="size-5" />
+                </Button>
+              ) : (
+                <Button
+                  size="lg"
+                  onClick={onConnectWallet}
+                  disabled={isConnecting}
+                  className="gap-2 text-base px-8 py-6 shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 hover:-translate-y-0.5"
+                >
+                  {isConnecting ? (
+                    <>
+                      <Loader2 className="size-5 animate-spin" />
+                      Conectando wallet...
+                    </>
+                  ) : (
+                    <>
+                      Comenzar ahora
+                      <ArrowRight className="size-5" />
+                    </>
+                  )}
+                </Button>
+              )}
               <Button
                 size="lg"
                 variant="outline"
@@ -243,24 +318,35 @@ export function Landing({ onConnectWallet, isConnecting = false, error }: Landin
 
             {/* CTA */}
             <div className="text-center mt-16">
-              <Button
-                size="lg"
-                onClick={onConnectWallet}
-                disabled={isConnecting}
-                className="gap-2 text-base px-8 py-6 shadow-xl shadow-primary/30"
-              >
-                {isConnecting ? (
-                  <>
-                    <Loader2 className="size-5 animate-spin" />
-                    Conectando...
-                  </>
-                ) : (
-                  <>
-                    Conectar Wallet y empezar
-                    <ArrowRight className="size-5" />
-                  </>
-                )}
-              </Button>
+              {isConnected ? (
+                <Button
+                  size="lg"
+                  onClick={onGoToDashboard}
+                  className="gap-2 text-base px-8 py-6 shadow-xl shadow-primary/30"
+                >
+                  Ir al Dashboard
+                  <ArrowRight className="size-5" />
+                </Button>
+              ) : (
+                <Button
+                  size="lg"
+                  onClick={onConnectWallet}
+                  disabled={isConnecting}
+                  className="gap-2 text-base px-8 py-6 shadow-xl shadow-primary/30"
+                >
+                  {isConnecting ? (
+                    <>
+                      <Loader2 className="size-5 animate-spin" />
+                      Conectando...
+                    </>
+                  ) : (
+                    <>
+                      Conectar Wallet y empezar
+                      <ArrowRight className="size-5" />
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -284,24 +370,35 @@ export function Landing({ onConnectWallet, isConnecting = false, error }: Landin
                 <p className="text-lg text-white/80 mb-8 max-w-xl mx-auto">
                   Conecta tu wallet ahora y empieza a generar imagenes y videos con los mejores modelos de IA.
                 </p>
-                <Button
-                  size="lg"
-                  onClick={onConnectWallet}
-                  disabled={isConnecting}
-                  className="bg-white text-violet-700 hover:bg-white/90 gap-2 text-base px-8 py-6 shadow-xl"
-                >
-                  {isConnecting ? (
-                    <>
-                      <Loader2 className="size-5 animate-spin" />
-                      Conectando...
-                    </>
-                  ) : (
-                    <>
-                      Conectar Wallet x402
-                      <ArrowRight className="size-5" />
-                    </>
-                  )}
-                </Button>
+                {isConnected ? (
+                  <Button
+                    size="lg"
+                    onClick={onGoToDashboard}
+                    className="bg-white text-violet-700 hover:bg-white/90 gap-2 text-base px-8 py-6 shadow-xl"
+                  >
+                    Ir al Dashboard
+                    <ArrowRight className="size-5" />
+                  </Button>
+                ) : (
+                  <Button
+                    size="lg"
+                    onClick={onConnectWallet}
+                    disabled={isConnecting}
+                    className="bg-white text-violet-700 hover:bg-white/90 gap-2 text-base px-8 py-6 shadow-xl"
+                  >
+                    {isConnecting ? (
+                      <>
+                        <Loader2 className="size-5 animate-spin" />
+                        Conectando...
+                      </>
+                    ) : (
+                      <>
+                        Conectar Wallet x402
+                        <ArrowRight className="size-5" />
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
             </Card>
           </div>

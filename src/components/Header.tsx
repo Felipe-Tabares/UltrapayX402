@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Wallet, Bell, ExternalLink, RefreshCw, Copy, Check } from 'lucide-react';
+import { Wallet, Bell, ExternalLink, RefreshCw, Copy, Check, AlertCircle, LogOut } from 'lucide-react';
 import type { View } from '../App';
 import { switchAccount, type WalletState } from '../services/x402';
 
@@ -7,12 +7,14 @@ interface HeaderProps {
   walletAddress?: string | null;
   onNavigate: (view: View) => void;
   onWalletChange?: (state: WalletState) => void;
+  onDisconnect?: () => void;
 }
 
-export function Header({ walletAddress, onNavigate, onWalletChange }: HeaderProps) {
+export function Header({ walletAddress, onNavigate, onWalletChange, onDisconnect }: HeaderProps) {
   const [isSwitching, setIsSwitching] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
 
   // Abrir wallet en explorador de bloques (Base Sepolia)
   const openInExplorer = () => {
@@ -34,14 +36,26 @@ export function Header({ walletAddress, onNavigate, onWalletChange }: HeaderProp
   // Cambiar cuenta
   const handleSwitchAccount = async () => {
     setIsSwitching(true);
-    setShowMenu(false);
+    setSwitchError(null);
     try {
       const newState = await switchAccount();
+      setShowMenu(false);
       if (onWalletChange) {
         onWalletChange(newState);
       }
     } catch (error) {
       console.error('Error switching account:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error al cambiar cuenta';
+      setSwitchError(errorMessage);
+      // Si falla, intentar abrir MetaMask directamente
+      if (typeof window !== 'undefined' && window.ethereum) {
+        try {
+          // Intentar con eth_requestAccounts como fallback
+          await window.ethereum.request({ method: 'eth_requestAccounts' });
+        } catch {
+          // Ignorar error del fallback
+        }
+      }
     } finally {
       setIsSwitching(false);
     }
@@ -93,6 +107,16 @@ export function Header({ walletAddress, onNavigate, onWalletChange }: HeaderProp
                     </div>
                   </div>
 
+                  {/* Error/Info message */}
+                  {switchError && (
+                    <div className="px-4 py-2 border-b border-border bg-amber-50">
+                      <div className="flex items-center gap-2 text-amber-700 text-xs">
+                        <AlertCircle className="size-4 flex-shrink-0" />
+                        <span>{switchError}</span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Copy address */}
                   <button
                     onClick={copyAddress}
@@ -124,11 +148,32 @@ export function Header({ walletAddress, onNavigate, onWalletChange }: HeaderProp
                   <button
                     onClick={handleSwitchAccount}
                     disabled={isSwitching}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-secondary flex items-center gap-2"
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-secondary flex items-center gap-2 disabled:opacity-50"
                   >
                     <RefreshCw className={`size-4 ${isSwitching ? 'animate-spin' : ''}`} />
-                    Cambiar cuenta
+                    {isSwitching ? 'Cambiando...' : 'Cambiar cuenta'}
                   </button>
+
+                  {/* Disconnect */}
+                  {onDisconnect && (
+                    <button
+                      onClick={() => {
+                        setShowMenu(false);
+                        onDisconnect();
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2"
+                    >
+                      <LogOut className="size-4" />
+                      Desconectar wallet
+                    </button>
+                  )}
+
+                  {/* Tip */}
+                  <div className="px-4 py-2 border-t border-border">
+                    <p className="text-xs text-muted-foreground">
+                      💡 También puedes cambiar desde tu wallet y se actualizará automáticamente
+                    </p>
+                  </div>
                 </div>
               )}
             </div>

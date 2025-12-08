@@ -32,7 +32,7 @@ export function Settings({ isWalletConnected, onNavigate, onDisconnectWallet, wa
       <Sidebar currentView="settings" onNavigate={onNavigate} onDisconnect={onDisconnectWallet} />
       
       <div className="flex-1">
-        <Header walletAddress={walletAddress} onNavigate={onNavigate} onWalletChange={onWalletChange} />
+        <Header walletAddress={walletAddress} onNavigate={onNavigate} onWalletChange={onWalletChange} onDisconnect={onDisconnectWallet} />
         
         <main className="p-8">
           <div className="max-w-4xl mx-auto">

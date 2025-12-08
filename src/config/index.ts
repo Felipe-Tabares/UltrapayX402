@@ -1,9 +1,8 @@
 // Configuración del frontend UltraPayx402
 
 export const config = {
-  // URL del backend - cambiar en producción
-  // Cuando despliegues a Lambda, actualiza VITE_API_URL en .env
-  apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+  // URL del backend en Render
+  apiUrl: import.meta.env.VITE_API_URL || 'https://ultrapayx402-backend.onrender.com',
 
   // Modo mock: usar datos simulados cuando el backend no está disponible
   // Cambiar a false cuando el backend esté desplegado

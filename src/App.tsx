@@ -26,8 +26,18 @@ export interface GeneratedContent {
   url: string;
 }
 
+// Obtener la vista inicial desde la URL
+function getInitialView(): View {
+  const path = window.location.pathname.replace('/', '');
+  const validViews: View[] = ['landing', 'dashboard', 'generate', 'result', 'history', 'settings'];
+  if (path && validViews.includes(path as View)) {
+    return path as View;
+  }
+  return 'landing';
+}
+
 function App() {
-  const [currentView, setCurrentView] = useState<View>('landing');
+  const [currentView, setCurrentView] = useState<View>(getInitialView);
   const [walletState, setWalletState] = useState<WalletState>({
     isConnected: false,
     address: null,
@@ -38,14 +48,28 @@ function App() {
   const [walletError, setWalletError] = useState<string | null>(null);
   const [currentResult, setCurrentResult] = useState<GeneratedContent | null>(null);
 
-  // Escuchar cambios en la wallet (pero NO auto-conectar al cargar)
+  // Verificar si ya hay una wallet conectada al cargar la página
   useEffect(() => {
-    // Escuchar cambios en la wallet mientras está conectada
+    async function checkExistingConnection() {
+      if (hasWalletProvider()) {
+        const state = await getWalletState();
+        if (state.isConnected && state.address) {
+          // Solo restaurar el estado de la wallet, sin cambiar de vista
+          setWalletState(state);
+        }
+      }
+    }
+    checkExistingConnection();
+  }, []); // Solo al montar
+
+  // Escuchar cambios en la wallet
+  useEffect(() => {
     const cleanup = onWalletChange((newState) => {
       setWalletState(newState);
       // Si se desconecta desde la wallet, volver al landing
       if (!newState.isConnected && currentView !== 'landing') {
         setCurrentView('landing');
+        window.history.pushState({ view: 'landing' }, '', '/');
       }
     });
 
@@ -61,7 +85,9 @@ function App() {
     };
 
     window.addEventListener('popstate', handlePopState);
-    window.history.replaceState({ view: 'landing' }, '', '/');
+    // Guardar el estado actual en el historial (sin cambiar la URL)
+    const initialView = getInitialView();
+    window.history.replaceState({ view: initialView }, '', initialView === 'landing' ? '/' : `/${initialView}`);
 
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
@@ -127,7 +153,11 @@ function App() {
       {currentView === 'landing' && (
         <Landing
           onConnectWallet={handleConnectWallet}
+          onGoToDashboard={() => navigateTo('dashboard')}
+          onDisconnect={handleDisconnectWallet}
           isConnecting={isConnectingWallet}
+          isConnected={walletState.isConnected}
+          walletAddress={walletState.address}
           error={walletError}
         />
       )}
