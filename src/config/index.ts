@@ -1,8 +1,8 @@
 // Configuración del frontend UltraPayx402
 
 export const config = {
-  // URL del backend en Render
-  apiUrl: import.meta.env.VITE_API_URL || 'https://ultrapayx402-backend.onrender.com',
+  // URL del backend - cambiar a localhost para desarrollo local
+  apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:3005',
 
   // Modo mock: usar datos simulados cuando el backend no está disponible
   // Cambiar a false para usar el backend real
@@ -11,8 +11,8 @@ export const config = {
   // Configuración x402
   x402: {
     facilitatorUrl: 'https://facilitator.ultravioletadao.xyz/',
-    // Testnet wallet
-    walletAddress: '0x34033041a5944B8F10f8E4D8496Bfb84f1A293A8',
+    // Wallet que recibe los pagos
+    walletAddress: '0x78420B020292C5c337Bb2dC5595c6cfD26C1eADb',
     // Red por defecto para testnet
     network: import.meta.env.VITE_X402_NETWORK || 'base-sepolia',
   },

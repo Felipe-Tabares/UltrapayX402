@@ -1,13 +1,48 @@
 /**
  * Servicio x402 para manejar pagos con el protocolo x402
  *
- * Este servicio utiliza viem para conectar con wallets y x402-fetch
- * para manejar automáticamente las respuestas 402 Payment Required.
+ * Este servicio utiliza viem para conectar con wallets y firma
+ * las transacciones según el estándar x402.
  */
 
-import { createWalletClient, custom, type WalletClient, type Account } from 'viem';
+import { createWalletClient, custom, type WalletClient, toHex } from 'viem';
 import { baseSepolia, base } from 'viem/chains';
 import { config } from '../config';
+
+// Interfaz para la información de pago del 402
+export interface PaymentRequiredInfo {
+  scheme: string;
+  network: string;
+  maxAmountRequired: string;
+  resource: string;
+  description: string;
+  mimeType: string;
+  payTo: string;
+  maxTimeoutSeconds: number;
+  asset: string;
+  extra?: {
+    name?: string;
+    version?: string;
+  };
+}
+
+// Payload de pago x402
+export interface PaymentPayload {
+  x402Version: number;
+  scheme: string;
+  network: string;
+  payload: {
+    signature: string;
+    authorization: {
+      from: string;
+      to: string;
+      value: string;
+      validAfter: string;
+      validBefore: string;
+      nonce: string;
+    };
+  };
+}
 
 // Tipos
 export interface WalletState {
@@ -25,7 +60,6 @@ export interface PaymentResult {
 
 // Estado global de la wallet
 let walletClient: WalletClient | null = null;
-let currentAccount: Account | null = null;
 
 /**
  * Verifica si hay una wallet instalada (MetaMask, Core, etc.)
@@ -76,10 +110,11 @@ export async function connectWallet(forceNewConnection: boolean = true): Promise
       throw new Error('No se pudo conectar con la wallet');
     }
 
-    const address = accounts[0];
+    const address = accounts[0] as `0x${string}`;
 
-    // Crear wallet client con viem
+    // Crear wallet client con viem - IMPORTANTE: incluir account para x402-fetch
     walletClient = createWalletClient({
+      account: address,
       chain: getChain(),
       transport: custom(window.ethereum!),
     });
@@ -116,7 +151,6 @@ export async function connectWallet(forceNewConnection: boolean = true): Promise
  */
 export async function disconnectWallet(): Promise<void> {
   walletClient = null;
-  currentAccount = null;
 
   // Intentar revocar permisos (solo funciona en algunas wallets como MetaMask)
   if (hasWalletProvider()) {
@@ -195,7 +229,7 @@ export async function switchAccount(): Promise<WalletState> {
       throw new Error('No se seleccionó ninguna cuenta');
     }
 
-    const address = accounts[0];
+    const address = accounts[0] as `0x${string}`;
 
     // Si la cuenta no cambió, dar instrucciones específicas
     if (address.toLowerCase() === currentAddress?.toLowerCase()) {
@@ -205,8 +239,9 @@ export async function switchAccount(): Promise<WalletState> {
       throw new Error('Selecciona una cuenta diferente en tu wallet');
     }
 
-    // Actualizar wallet client
+    // Actualizar wallet client con account para x402-fetch
     walletClient = createWalletClient({
+      account: address,
       chain: getChain(),
       transport: custom(window.ethereum!),
     });
@@ -338,27 +373,256 @@ export function getWalletClient(): WalletClient | null {
 }
 
 /**
- * Crea un fetch wrapper con soporte para pagos x402
- * Este wrapper intercepta respuestas 402 y maneja el pago automáticamente
+ * Asegura que el walletClient esté inicializado con account
+ * Si la wallet está conectada pero walletClient es null, lo inicializa
  */
-export async function createPaymentFetch(): Promise<typeof fetch> {
-  if (!walletClient) {
+async function ensureWalletClient(): Promise<WalletClient> {
+  // Si no hay walletClient pero la wallet está conectada, inicializarlo
+  if (!hasWalletProvider()) {
+    throw new Error('No wallet provider found');
+  }
+
+  const accounts = await window.ethereum!.request({
+    method: 'eth_accounts',
+  }) as string[];
+
+  if (!accounts || accounts.length === 0) {
     throw new Error('Wallet not connected');
   }
 
-  try {
-    // Importar dinámicamente x402-fetch
-    const { wrapFetchWithPayment } = await import('x402-fetch');
+  const address = accounts[0] as `0x${string}`;
 
-    // Crear el fetch wrapper con el wallet client
-    // maxValue: máximo pago permitido en unidades base (1.5 USDC = 1500000)
-    const maxPaymentValue = BigInt(1500000); // 1.5 USDC máximo
+  // Siempre recrear walletClient con el account actual
+  // Esto es necesario porque x402-fetch necesita acceder a walletClient.account.address
+  walletClient = createWalletClient({
+    account: address,
+    chain: getChain(),
+    transport: custom(window.ethereum!),
+  });
 
-    return wrapFetchWithPayment(fetch, walletClient, maxPaymentValue);
-  } catch (error) {
-    console.error('Error creating payment fetch:', error);
-    throw error;
+  console.log('[x402] WalletClient initialized with account:', address);
+  return walletClient;
+}
+
+/**
+ * Interfaz para la respuesta 402 del backend x402-express
+ */
+interface X402Response {
+  x402Version: number;
+  error: string;
+  accepts: PaymentRequiredInfo[];
+}
+
+/**
+ * Genera un nonce aleatorio para la autorización
+ */
+function generateNonce(): string {
+  const randomBytes = new Uint8Array(32);
+  crypto.getRandomValues(randomBytes);
+  return toHex(randomBytes);
+}
+
+/**
+ * Firma una autorización de pago usando EIP-3009 (TransferWithAuthorization)
+ * y retorna el payload x402 completo
+ */
+export async function signPaymentAuthorization(
+  paymentInfo: PaymentRequiredInfo,
+  amount: bigint
+): Promise<PaymentPayload> {
+  const client = await ensureWalletClient();
+
+  if (!client.account) {
+    throw new Error('Wallet account not available');
   }
+
+  const address = client.account.address;
+  const chain = getChain();
+
+  // Verificar que la wallet esté en la red correcta antes de firmar
+  const currentChainId = await window.ethereum!.request({
+    method: 'eth_chainId',
+  }) as string;
+  const currentChainIdNum = parseInt(currentChainId, 16);
+
+  if (currentChainIdNum !== chain.id) {
+    console.log(`[x402] Switching network from ${currentChainIdNum} to ${chain.id} (${chain.name})`);
+    await switchToCorrectNetwork();
+
+    // Reinicializar walletClient con la nueva red
+    walletClient = createWalletClient({
+      account: address,
+      chain: chain,
+      transport: custom(window.ethereum!),
+    });
+    console.log('[x402] WalletClient reinitialized after network switch');
+  }
+
+  // Tiempos de validez
+  const now = Math.floor(Date.now() / 1000);
+  const validAfter = BigInt(now - 60); // Válido desde hace 1 minuto
+  const validBefore = BigInt(now + paymentInfo.maxTimeoutSeconds + 300); // Válido por el timeout + 5 minutos extra
+
+  // Generar nonce aleatorio
+  const authorizationNonce = generateNonce();
+
+  // USDC contract address en Base Sepolia o Base
+  const usdcAddress = chain.id === 84532
+    ? '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // Base Sepolia USDC
+    : '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // Base USDC
+
+  // EIP-712 Domain para USDC
+  const domain = {
+    name: paymentInfo.extra?.name || 'USD Coin',
+    version: paymentInfo.extra?.version || '2',
+    chainId: chain.id,
+    verifyingContract: usdcAddress as `0x${string}`,
+  };
+
+  // Tipos EIP-712 para TransferWithAuthorization (EIP-3009)
+  const types = {
+    TransferWithAuthorization: [
+      { name: 'from', type: 'address' },
+      { name: 'to', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'validAfter', type: 'uint256' },
+      { name: 'validBefore', type: 'uint256' },
+      { name: 'nonce', type: 'bytes32' },
+    ],
+  };
+
+  // Mensaje a firmar
+  const message = {
+    from: address,
+    to: paymentInfo.payTo as `0x${string}`,
+    value: amount,
+    validAfter: validAfter,
+    validBefore: validBefore,
+    nonce: authorizationNonce as `0x${string}`,
+  };
+
+  console.log('[x402] Signing payment authorization:', {
+    from: address,
+    to: paymentInfo.payTo,
+    amount: amount.toString(),
+    validAfter: validAfter.toString(),
+    validBefore: validBefore.toString(),
+  });
+
+  // Firmar con EIP-712 (usar walletClient que puede haber sido actualizado después del cambio de red)
+  const signingClient = walletClient || client;
+  const signature = await signingClient.signTypedData({
+    account: signingClient.account!,
+    domain,
+    types,
+    primaryType: 'TransferWithAuthorization',
+    message,
+  });
+
+  // Construir el payload x402
+  const paymentPayload: PaymentPayload = {
+    x402Version: 1,
+    scheme: paymentInfo.scheme,
+    network: paymentInfo.network,
+    payload: {
+      signature: signature,
+      authorization: {
+        from: address,
+        to: paymentInfo.payTo,
+        value: amount.toString(),
+        validAfter: validAfter.toString(),
+        validBefore: validBefore.toString(),
+        nonce: authorizationNonce,
+      },
+    },
+  };
+
+  return paymentPayload;
+}
+
+/**
+ * Codifica el payload de pago para el header X-Payment
+ */
+export function encodePaymentHeader(payload: PaymentPayload): string {
+  const jsonStr = JSON.stringify(payload);
+  return btoa(jsonStr);
+}
+
+/**
+ * Crea un fetch wrapper con soporte para pagos x402
+ * Este wrapper intercepta respuestas 402 y maneja el pago automáticamente
+ *
+ * Flujo:
+ * 1. Envía request sin pago
+ * 2. Si recibe 402, lee el body JSON con la info de pago
+ * 3. Abre wallet para que usuario firme la autorización
+ * 4. Reenvía request con header X-Payment
+ */
+export async function createPaymentFetch(): Promise<typeof fetch> {
+  // Asegurar que walletClient esté inicializado
+  await ensureWalletClient();
+
+  // Retornar un fetch wrapper que maneja 402 automáticamente
+  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    // Primera petición sin header de pago
+    const firstResponse = await fetch(input, init);
+
+    // Si no es 402, retornar la respuesta directamente
+    if (firstResponse.status !== 402) {
+      return firstResponse;
+    }
+
+    console.log('[x402] Received 402 Payment Required');
+
+    // Leer la información de pago del body JSON (x402-express envía aquí los datos)
+    let x402Data: X402Response;
+    try {
+      x402Data = await firstResponse.json();
+    } catch (error) {
+      console.error('[x402] Error parsing 402 response body:', error);
+      throw new Error('No se pudo leer la información de pago del servidor');
+    }
+
+    // Validar que tengamos la info de pago
+    if (!x402Data.accepts || x402Data.accepts.length === 0) {
+      console.error('[x402] No payment info in 402 response:', x402Data);
+      throw new Error('El servidor no proporcionó información de pago válida');
+    }
+
+    // Obtener la primera opción de pago (normalmente solo hay una)
+    const paymentInfo = x402Data.accepts[0];
+
+    console.log('[x402] Payment info:', {
+      scheme: paymentInfo.scheme,
+      network: paymentInfo.network,
+      amount: paymentInfo.maxAmountRequired,
+      payTo: paymentInfo.payTo,
+      asset: paymentInfo.asset,
+    });
+
+    // Convertir el monto (ya viene en unidades atómicas, ej: 100000 = $0.10 USDC)
+    const amount = BigInt(paymentInfo.maxAmountRequired);
+
+    // Firmar la autorización de pago - esto abre la wallet para que el usuario confirme
+    console.log('[x402] Requesting wallet signature...');
+    const paymentPayload = await signPaymentAuthorization(paymentInfo, amount);
+
+    // Codificar el payload para el header X-Payment
+    const paymentHeader = encodePaymentHeader(paymentPayload);
+
+    console.log('[x402] Payment signed, sending request with X-Payment header');
+
+    // Segunda petición con el header X-Payment
+    const newHeaders = new Headers(init?.headers);
+    newHeaders.set('X-Payment', paymentHeader);
+
+    const secondResponse = await fetch(input, {
+      ...init,
+      headers: newHeaders,
+    });
+
+    return secondResponse;
+  };
 }
 
 /**
@@ -369,8 +633,9 @@ export function onWalletChange(callback: (state: WalletState) => void): () => vo
     return () => {};
   }
 
-  const handleAccountsChanged = async (accounts: string[]) => {
-    if (accounts.length === 0) {
+  const handleAccountsChanged = async (...args: unknown[]) => {
+    const accounts = args[0] as string[];
+    if (!accounts || accounts.length === 0) {
       callback({
         isConnected: false,
         address: null,
