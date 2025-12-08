@@ -1,5 +1,6 @@
 // Servicio API para conectar con el backend UltraPayx402
 import { config } from '../config';
+import { paymentService, type X402PaymentInfo } from './payment';
 
 // Tipos
 export interface Provider {
@@ -145,12 +146,14 @@ class ApiService {
       'Content-Type': 'application/json',
     };
 
+    const finalHeaders = {
+      ...defaultHeaders,
+      ...options.headers,
+    };
+ 
     const response = await fetch(url, {
       ...options,
-      headers: {
-        ...defaultHeaders,
-        ...options.headers,
-      },
+      headers: finalHeaders,
     });
 
     // Si es 402, retornar la respuesta para que el caller la maneje
@@ -164,7 +167,8 @@ class ApiService {
       throw new ApiError(response.status, error.message || error.error);
     }
 
-    return response.json();
+    const result = await response.json();
+    return result;
   }
 
   // Health check
@@ -220,6 +224,7 @@ class ApiService {
 
   // Generar contenido
   async generate(data: GenerateRequest, paymentToken?: string): Promise<GenerateResponse> {
+   
     if (this.useMock) {
       // Simular delay de generacion
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -258,10 +263,10 @@ class ApiService {
 
     // Request real al backend
     const headers: HeadersInit = {};
-
+    
     if (paymentToken) {
-      headers['X-Payment'] = paymentToken;
-    }
+      headers['x-payment'] = paymentToken;
+    } 
 
     return this.request<GenerateResponse>('/generate', {
       method: 'POST',
@@ -280,9 +285,74 @@ class ApiService {
     return this.useMock;
   }
 
+  async generateWithX402(data: GenerateRequest): Promise<GenerateResponse> {
+    if (this.useMock) {
+      // En modo mock, simular el pago y generacion
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const provider = MOCK_PROVIDERS.find(p => p.id === data.provider) || MOCK_PROVIDERS[0];
+
+      // Simular que requiere pago
+      if (!paymentService.isConnected()) {
+        throw new PaymentRequiredError({
+          error: 'Payment required',
+          price: provider.price,
+          currency: 'USD',
+          provider: provider.id,
+          providerName: provider.name,
+          x402: {
+            'X-Payment-Required': 'true',
+            'X-Payment-Amount': provider.price.toString(),
+            'X-Payment-Currency': 'USD',
+            'X-Payment-Recipient': config.x402.walletAddress,
+            'X-Facilitator-URL': config.x402.facilitatorUrl
+          }
+        });
+      }
+
+      return {
+        success: true,
+        transactionId: `mock-paid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        mediaUrl: MOCK_IMAGE_URLS[Math.floor(Math.random() * MOCK_IMAGE_URLS.length)],
+        type: data.type,
+        provider: provider.id,
+        providerName: provider.name,
+        price: provider.price
+      };
+    }
+
+    try {
+      // Primer intento sin token de pago
+      return await this.generate(data);
+    } catch (error) {
+      
+      // Si es 402 Payment Required, manejar el pago
+      if (error instanceof PaymentRequiredError) {
+        
+        // La respuesta del backend viene en formato x402-express
+        const x402Response = error.paymentInfo as any as X402PaymentInfo;
+
+        // Verificar que la wallet esté conectada
+        if (!paymentService.isConnected()) {
+          throw new Error('Debes conectar tu wallet para realizar el pago');
+        }
+
+        const paymentToken = await paymentService.executePayment(x402Response);
+
+        // Reintentar con el token de pago
+        const result = await this.generate(data, paymentToken);
+        return result;
+      }
+
+      // Si es otro tipo de error, lanzarlo
+      throw error;
+    }
+  }
+
   /**
    * Genera contenido usando x402-fetch con pago automatico
    * Este metodo usa el wallet client para firmar pagos automaticamente
+   * @deprecated - Usar generateWithX402 en su lugar
    */
   async generateWithPayment(
     data: GenerateRequest,

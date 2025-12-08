@@ -6,31 +6,23 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
-import { Loader2, Sparkles, Wand2, Image, Video, Zap, CheckCircle2, AlertCircle, Wallet } from 'lucide-react';
+import { Loader2, Sparkles, Wand2, Image, Video, CheckCircle2, AlertCircle, Wallet } from 'lucide-react';
 import type { View, GeneratedContent } from '../App';
 import { api, type Provider } from '../services/api';
-import {
-  connectWallet,
-  getWalletState,
-  hasWalletProvider,
-  createPaymentFetch,
-  switchToCorrectNetwork,
-  type WalletState
-} from '../services/x402';
+import { usePayment } from '../hooks/usePayment';
 import { config } from '../config';
 
 interface GenerateProps {
   onNavigate: (view: View) => void;
   onGenerate: (content: Omit<GeneratedContent, 'id' | 'date'>) => void;
   onDisconnect: () => void;
-  onWalletChange?: (state: WalletState) => void;
 }
 
 const resolutions = ['512x512', '1024x1024', '1920x1080', '2048x2048'];
 const durations = ['5s', '10s', '15s', '30s'];
 const styles = ['Realista', 'Artistico', 'Anime', 'Abstracto', '3D Render', 'Cinematico'];
 
-export function Generate({ onNavigate, onGenerate, onDisconnect, onWalletChange }: GenerateProps) {
+export function Generate({ onNavigate, onGenerate, onDisconnect }: GenerateProps) {
   const [prompt, setPrompt] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
   const [resolution, setResolution] = useState('1024x1024');
@@ -44,16 +36,15 @@ export function Generate({ onNavigate, onGenerate, onDisconnect, onWalletChange 
   const [providers, setProviders] = useState<Provider[]>([]);
   const [isLoadingProviders, setIsLoadingProviders] = useState(true);
 
-  // Estado de la wallet para x402
-  const [walletState, setWalletState] = useState<WalletState>({
-    isConnected: false,
-    address: null,
-    chainId: null,
-    balance: null,
-  });
-  const [isConnectingWallet, setIsConnectingWallet] = useState(false);
+  // Hook de pagos X402
+  const { 
+    isConnected: walletConnected, 
+    address: walletAddress,
+    connectWallet,
+    state: paymentState 
+  } = usePayment();
 
-  // Cargar proveedores y estado de wallet al montar
+  // Cargar proveedores al montar
   useEffect(() => {
     async function init() {
       // Cargar proveedores
@@ -71,12 +62,6 @@ export function Generate({ onNavigate, onGenerate, onDisconnect, onWalletChange 
       } finally {
         setIsLoadingProviders(false);
       }
-
-      // Verificar estado de wallet
-      if (hasWalletProvider()) {
-        const state = await getWalletState();
-        setWalletState(state);
-      }
     }
 
     init();
@@ -89,30 +74,17 @@ export function Generate({ onNavigate, onGenerate, onDisconnect, onWalletChange 
   const isUsingMock = api.isUsingMock();
   const canGenerate = prompt.trim().length > 0 &&
     !isLoadingProviders &&
-    (isUsingMock || walletState.isConnected);
+    (isUsingMock || walletConnected);
 
   // Conectar wallet
   const handleConnectWallet = async () => {
-    setIsConnectingWallet(true);
     setError(null);
 
     try {
-      const state = await connectWallet();
-      setWalletState(state);
-
-      // Verificar si estamos en la red correcta
-      const expectedChainId = config.x402.network === 'base-sepolia' ? 84532 : 8453;
-      if (state.chainId !== expectedChainId) {
-        setError(`Por favor cambia a la red ${config.x402.network}`);
-        await switchToCorrectNetwork();
-        const newState = await getWalletState();
-        setWalletState(newState);
-      }
+      await connectWallet();
     } catch (err) {
       console.error('Error connecting wallet:', err);
       setError(err instanceof Error ? err.message : 'Error al conectar wallet');
-    } finally {
-      setIsConnectingWallet(false);
     }
   };
 
@@ -125,44 +97,19 @@ export function Generate({ onNavigate, onGenerate, onDisconnect, onWalletChange 
     setGenerationStep('Preparando...');
 
     try {
-      let result;
-
-      if (isUsingMock) {
-        // Modo mock: simular pago y generacion
-        setGenerationStep('Simulando pago x402...');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        setGenerationStep('Generando con IA...');
-        result = await api.generateWithPayment(
-          {
-            prompt,
-            type: currentModel.type,
-            provider: currentModel.id
-          },
-          fetch // En mock no se usa realmente
-        );
-      } else {
-        // Modo real: usar x402-fetch con pago automatico
-        if (!walletState.isConnected) {
-          throw new Error('Wallet no conectada');
-        }
-
-        setGenerationStep('Preparando pago x402...');
-        const paymentFetch = await createPaymentFetch();
-
-        setGenerationStep('Firmando transaccion...');
-        // x402-fetch manejara automaticamente el 402 y el pago
-
-        setGenerationStep('Generando con IA...');
-        result = await api.generateWithPayment(
-          {
-            prompt,
-            type: currentModel.type,
-            provider: currentModel.id
-          },
-          paymentFetch
-        );
+      // Verificar wallet conectada (excepto en modo mock)
+      if (!isUsingMock && !walletConnected) {
+        throw new Error('Por favor conecta tu wallet primero');
       }
+
+      // Usar el nuevo método generateWithX402 que maneja automáticamente el pago
+      setGenerationStep('Generando con IA...');
+      
+      const result = await api.generateWithX402({
+        prompt,
+        type: currentModel.type,
+        provider: currentModel.id
+      });
 
       setGenerationStep('Completado!');
 
@@ -216,16 +163,16 @@ export function Generate({ onNavigate, onGenerate, onDisconnect, onWalletChange 
 
             {/* Wallet Status Banner */}
             {!isUsingMock && (
-              <Card className={`p-4 mb-6 ${walletState.isConnected ? 'border-green-500/50 bg-green-500/10' : 'border-yellow-500/50 bg-yellow-500/10'}`}>
+              <Card className={`p-4 mb-6 ${walletConnected ? 'border-green-500/50 bg-green-500/10' : 'border-yellow-500/50 bg-yellow-500/10'}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Wallet className={`size-5 ${walletState.isConnected ? 'text-green-600' : 'text-yellow-600'}`} />
-                    {walletState.isConnected ? (
+                    <Wallet className={`size-5 ${walletConnected ? 'text-green-600' : 'text-yellow-600'}`} />
+                    {walletConnected ? (
                       <div>
                         <p className="text-sm font-medium text-green-700">Wallet conectada</p>
                         <p className="text-xs text-muted-foreground">
-                          {walletState.address?.slice(0, 6)}...{walletState.address?.slice(-4)}
-                          {' | '}Red: {walletState.chainId === 84532 ? 'Base Sepolia' : walletState.chainId === 8453 ? 'Base' : `Chain ${walletState.chainId}`}
+                          {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
+                          {' | '}Red: {config.x402.network}
                         </p>
                       </div>
                     ) : (
@@ -235,14 +182,14 @@ export function Generate({ onNavigate, onGenerate, onDisconnect, onWalletChange 
                       </div>
                     )}
                   </div>
-                  {!walletState.isConnected && (
+                  {!walletConnected && (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={handleConnectWallet}
-                      disabled={isConnectingWallet}
+                      disabled={paymentState.isProcessing}
                     >
-                      {isConnectingWallet ? (
+                      {paymentState.isProcessing ? (
                         <Loader2 className="size-4 animate-spin mr-2" />
                       ) : (
                         <Wallet className="size-4 mr-2" />
@@ -475,7 +422,7 @@ export function Generate({ onNavigate, onGenerate, onDisconnect, onWalletChange 
                     )}
                   </Button>
 
-                  {!isUsingMock && !walletState.isConnected && (
+                  {!isUsingMock && !walletConnected && (
                     <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
                       <p className="text-sm text-yellow-700 flex items-center gap-2">
                         <Wallet className="size-4" />

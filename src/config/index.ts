@@ -5,7 +5,7 @@ export const config = {
   apiUrl: import.meta.env.VITE_API_URL || 'https://ultrapayx402-backend.onrender.com',
 
   // Modo mock: usar datos simulados cuando el backend no está disponible
-  // Cambiar a false para usar el backend real
+  // Cambiar a false cuando el backend esté desplegado
   useMockData: import.meta.env.VITE_USE_MOCK === 'true',
 
   // Configuración x402
