@@ -23,12 +23,17 @@ export function Sidebar({ currentView, onNavigate, onDisconnect }: SidebarProps)
           onClick={() => onNavigate('landing')}
           className="flex items-center gap-3 hover:opacity-80 transition-opacity w-full text-left"
         >
-          <div className="size-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/25">
-            <Wallet className="size-5 text-white" />
+          <div className="relative">
+            <div className="absolute inset-0 bg-violet-500/30 blur-2xl rounded-full scale-150" />
+            <img
+              src="/img/logoultrapya.png"
+              alt="UltraPayx402"
+              className="h-14 w-auto relative drop-shadow-xl"
+            />
           </div>
           <div>
-            <span className="font-semibold text-lg text-foreground">UltraPayx402</span>
-            <p className="text-xs text-muted-foreground">Micropagos IA</p>
+            <span className="font-semibold text-xl text-foreground">UltraPayx402</span>
+            <p className="text-sm text-muted-foreground">Micropagos IA</p>
           </div>
         </button>
       </div>

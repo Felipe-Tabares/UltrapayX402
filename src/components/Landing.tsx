@@ -73,9 +73,18 @@ export function Landing({ onConnectWallet, onGoToDashboard, onDisconnect, isConn
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-background/80 border-b border-border/50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="size-9 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/25">
-                <Sparkles className="size-5 text-white" />
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="absolute inset-0 bg-violet-500/30 blur-2xl rounded-full scale-150" />
+                <img
+                  src="/img/logoultrapya.png"
+                  alt="UltraPayx402"
+                  className="h-14 w-auto relative drop-shadow-xl"
+                />
+              </div>
+              <div>
+                <span className="font-semibold text-xl">UltraPayx402</span>
+                <p className="text-sm text-muted-foreground">Micropagos IA</p>
               </div>
               <span className="font-semibold text-lg text-foreground">UltraPayx402</span>
             </div>
@@ -426,12 +435,17 @@ export function Landing({ onConnectWallet, onGoToDashboard, onDisconnect, isConn
           <div className="max-w-6xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-center gap-6">
               <div className="flex items-center gap-3">
-                <div className="size-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center">
-                  <Sparkles className="size-5 text-white" />
+                <div className="relative">
+                  <div className="absolute inset-0 bg-violet-500/30 blur-2xl rounded-full scale-150" />
+                  <img
+                    src="/img/logoultrapya.png"
+                    alt="UltraPayx402"
+                    className="h-14 w-auto relative drop-shadow-xl"
+                  />
                 </div>
                 <div>
-                  <span className="font-semibold text-foreground">UltraPayx402</span>
-                  <p className="text-xs text-muted-foreground">Generacion IA con micropagos</p>
+                  <span className="font-semibold text-foreground text-lg">UltraPayx402</span>
+                  <p className="text-sm text-muted-foreground">Micropagos IA</p>
                 </div>
               </div>
               <div className="flex items-center gap-8 text-sm text-muted-foreground">
