@@ -173,12 +173,12 @@ export function Dashboard({ onNavigate, history, onDisconnect, walletAddress, on
                   {history.slice(0, 5).map((item) => (
                     <Card
                       key={item.id}
-                      className="group p-4 border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 cursor-pointer"
+                      className="group p-4 border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 cursor-pointer overflow-hidden"
                       onClick={() => setSelectedImage(item)}
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3 lg:gap-4 min-w-0">
                         {/* Thumbnail */}
-                        <div className="size-16 lg:size-20 rounded-xl overflow-hidden flex-shrink-0 bg-secondary">
+                        <div className="size-14 sm:size-16 lg:size-20 rounded-xl overflow-hidden flex-shrink-0 bg-secondary">
                           <img
                             src={item.url}
                             alt={item.prompt}
@@ -187,33 +187,35 @@ export function Dashboard({ onNavigate, history, onDisconnect, walletAddress, on
                         </div>
 
                         {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
+                        <div className="flex-1 min-w-0 overflow-hidden">
+                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
                             {item.type === 'image' ? (
-                              <div className="flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-500/10 px-2 py-0.5 rounded-full">
+                              <div className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-500/10 px-2 py-0.5 rounded-full flex-shrink-0">
                                 <Image className="size-3" />
-                                Imagen
+                                <span className="hidden xs:inline">Imagen</span>
                               </div>
                             ) : (
-                              <div className="flex items-center gap-1.5 text-xs font-medium text-pink-600 bg-pink-500/10 px-2 py-0.5 rounded-full">
+                              <div className="flex items-center gap-1 text-xs font-medium text-pink-600 bg-pink-500/10 px-2 py-0.5 rounded-full flex-shrink-0">
                                 <Video className="size-3" />
-                                Video
+                                <span className="hidden xs:inline">Video</span>
                               </div>
                             )}
-                            <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">{item.model}</span>
+                            <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full truncate max-w-[120px] sm:max-w-[150px] flex-shrink-0">
+                              {item.model}
+                            </span>
                           </div>
-                          <p className="font-medium truncate mb-1 text-foreground">{item.prompt}</p>
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Clock className="size-3" />
-                              {item.date}
+                          <p className="font-medium truncate mb-1 text-sm sm:text-base text-foreground">{item.prompt}</p>
+                          <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1 truncate">
+                              <Clock className="size-3 flex-shrink-0" />
+                              <span className="truncate">{item.date}</span>
                             </span>
                           </div>
                         </div>
 
                         {/* Cost */}
-                        <div className="text-right flex-shrink-0">
-                          <div className="text-lg font-bold text-primary">{item.cost.toFixed(2)}</div>
+                        <div className="text-right flex-shrink-0 min-w-[60px] sm:min-w-[70px]">
+                          <div className="text-base sm:text-lg font-bold text-primary">{item.cost.toFixed(2)}</div>
                           <div className="text-xs text-muted-foreground">x402</div>
                         </div>
                       </div>
