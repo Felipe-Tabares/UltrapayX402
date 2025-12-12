@@ -77,7 +77,7 @@ export function Landing({ onConnectWallet, onGoToDashboard, onDisconnect, isConn
               <div className="relative">
                 <div className="absolute inset-0 bg-violet-500/30 blur-2xl rounded-full scale-150" />
                 <img
-                  src="public/img/logoultrapya.png"
+                  src="/img/logoultrapya.png"
                   alt="UltraPayx402"
                   className="h-14 w-auto relative drop-shadow-xl"
                 />
