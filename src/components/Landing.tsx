@@ -77,7 +77,7 @@ export function Landing({ onConnectWallet, onGoToDashboard, onDisconnect, isConn
               <div className="relative">
                 <div className="absolute inset-0 bg-violet-500/30 blur-2xl rounded-full scale-150" />
                 <img
-                  src="public/img/logoultrapya.png"
+                  src="/img/logoultrapya.png"
                   alt="UltraPayx402"
                   className="h-14 w-auto relative drop-shadow-xl"
                 />
@@ -85,8 +85,7 @@ export function Landing({ onConnectWallet, onGoToDashboard, onDisconnect, isConn
               <div>
                 <span className="font-semibold text-xl text-white">UltraPayx402</span>
                 <p className="text-sm text-muted-foreground">Micropagos IA</p>
-              </div>
-              <span className="font-semibold text-lg text-foreground">UltraPayx402</span>
+              </div> 
             </div>
             <div className="flex items-center gap-3">
               {/* Theme toggle */}
